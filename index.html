@@ -8,9 +8,65 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚠️</text></svg>">
 </head>
 <body>
-  <div class="app" id="app"></div>
-  <script src="js/model.js"></script>
-  <script src="js/ui.js"></script>
-  <script src="js/app.js"></script>
+<div class="app">
+
+  <div class="header">
+    <h1>Disaster Risk Intelligence</h1>
+    <p>Predict disaster risk from environmental and socioeconomic conditions. Adjust inputs to see how resilience measures change outcomes.</p>
+  </div>
+
+  <div class="grid">
+    <div class="card" id="input-panel">
+      <div class="card-title">Scenario Parameters</div>
+    </div>
+    <div class="card" id="output-panel">
+      <div class="card-title">Risk Assessment</div>
+      <div class="score-wrap">
+        <div class="score-ring" id="score-ring">
+          <svg width="140" height="140">
+            <circle cx="70" cy="70" r="50" fill="none" stroke="var(--border)" stroke-width="6"/>
+            <circle id="score-arc" cx="70" cy="70" r="50" fill="none" stroke="#30d158" stroke-width="6" stroke-linecap="round" stroke-dasharray="314" stroke-dashoffset="314"/>
+          </svg>
+          <span class="score-num" id="score-num">--</span>
+        </div>
+        <div class="score-conf" id="score-conf"></div>
+        <div class="level-badge" id="level-badge"></div>
+        <div class="anomaly-badge" id="anomaly-badge"></div>
+        <div class="risk-action" id="risk-action"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card" id="explain-panel">
+      <div class="card-title">Feature Influence</div>
+      <div class="imp-list" id="imp-list"></div>
+      <button class="expand-btn" id="expand-btn">▸ Why this result?</button>
+      <div class="expand-content" id="expand-content" style="display:none"></div>
+    </div>
+    <div class="card" id="diag-panel">
+      <div class="card-title">Model Diagnostics</div>
+      <div class="diag-section" id="diag-confidence"></div>
+      <div class="diag-section" id="diag-anomaly"></div>
+      <div class="diag-section" id="diag-ensemble"></div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="toggle-bar">
+    <span style="font-size:.82rem;color:var(--text2);font-weight:500">Compare Scenarios</span>
+    <button class="toggle" id="compare-toggle"></button>
+  </div>
+  <div class="comp-grid" id="compare-grid" style="display:none"></div>
+
+  <div class="footer">
+    <span class="footer-credit">Created by <strong>Viren Singh</strong></span>
+    <span class="footer-ver">Disaster Risk Intelligence v1.0</span>
+  </div>
+
+</div>
+<script src="js/model.js"></script>
+<script src="js/app.js"></script>
 </body>
 </html>
