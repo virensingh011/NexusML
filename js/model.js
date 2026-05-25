@@ -73,6 +73,73 @@ function detectAnomaly(inputs) {
   };
 }
 
+function checkRealism(inputs) {
+  const warnings = [];
+  let score = 0;
+
+  // Rule 1: Emergency response < 3min with high climate vulnerability
+  if (inputs.response < 3 && inputs.climate > 80) {
+    warnings.push('Emergency Response <3min is unrealistic alongside max Climate Vulnerability. No region with extreme climate risk has sub-3min response.');
+    score += 40;
+  } else if (inputs.response < 3) {
+    warnings.push('Emergency Response below 3 minutes is faster than any known real-world system (best: ~5min, Seattle FD). Extrapolating beyond observed data.');
+    score += 25;
+  } else if (inputs.response < 5 && inputs.climate > 70) {
+    warnings.push('Emergency Response under 5min with high Climate Vulnerability is unusual — vulnerable regions rarely achieve this response time.');
+    score += 15;
+  }
+
+  // Rule 2: High infrastructure + high climate vulnerability
+  if (inputs.infra > 85 && inputs.climate > 80) {
+    warnings.push('Infrastructure Quality >85 and Climate Vulnerability >80 is contradictory — high vulnerability regions cannot sustain world-class infrastructure.');
+    score += 35;
+  } else if (inputs.infra > 90 && inputs.climate > 60) {
+    warnings.push('Near-perfect Infrastructure with elevated Climate Vulnerability is unusual. Climate-vulnerable regions typically have weakened infrastructure.');
+    score += 15;
+  }
+
+  // Rule 3: High disaster frequency with slow response
+  if (inputs.freq > 30 && inputs.response > 30) {
+    warnings.push('Disaster Frequency >30/yr with Emergency Response >30min is implausible — frequent disasters force faster response systems to develop.');
+    score += 30;
+  } else if (inputs.freq > 20 && inputs.response > 25) {
+    warnings.push('High disaster frequency typically drives faster emergency response. Current combination is unusual.');
+    score += 10;
+  }
+
+  // Rule 4: Max population density with low infrastructure
+  if (inputs.pop > 30000 && inputs.infra < 20) {
+    warnings.push('Population Density >30,000/km\u00B2 with Infrastructure Quality <20 is unrealistic — dense urban centers require functional infrastructure.');
+    score += 30;
+  } else if (inputs.pop > 20000 && inputs.infra < 15) {
+    warnings.push('Extremely dense population with very low infrastructure quality is typically not sustainable.');
+    score += 10;
+  }
+
+  // Rule 5: Economic resilience with infrastructure mismatch
+  if (inputs.economy > 85 && inputs.infra < 20) {
+    warnings.push('Economic Resilience >85 with Infrastructure Quality <20 is contradictory — resilient economies invest in infrastructure.');
+    score += 25;
+  } else if (inputs.economy < 10 && inputs.infra > 85) {
+    warnings.push('High Infrastructure Quality with very low Economic Resilience is unusual — infrastructure requires economic backing.');
+    score += 15;
+  }
+
+  let level, badgeClass;
+  if (score >= 30) {
+    level = 'Implausible';
+    badgeClass = 'implausible';
+  } else if (score >= 10) {
+    level = 'Questionable';
+    badgeClass = 'questionable';
+  } else {
+    level = 'Realistic';
+    badgeClass = 'realistic';
+  }
+
+  return { level, badgeClass, warnings, score };
+}
+
 function predict(inputs) {
   const contributions = {};
   let raw = BASELINE_RISK;
@@ -128,6 +195,7 @@ function predict(inputs) {
 
   const uncertainty = computeUncertainty(inputs);
   const anomaly = detectAnomaly(inputs);
+  const realism = checkRealism(inputs);
 
-  return { score, level, action, contributions, sorted, explanation, counterfactuals, uncertainty, anomaly };
+  return { score, level, action, contributions, sorted, explanation, counterfactuals, uncertainty, anomaly, realism };
 }

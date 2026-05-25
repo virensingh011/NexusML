@@ -24,6 +24,7 @@ recalc();
 const LEVEL_COLORS = { Low: '#30d158', Medium: '#ffd60a', High: '#ff9f0a', Critical: '#ff453a' };
 const CONF_PCT = { High: 90, Medium: 70, Low: 50 };
 const ANOM_COL = { Typical: 'var(--green)', Atypical: 'var(--yellow)', Unusual: 'var(--red)' };
+const REALISM_COL = { Realistic: 'var(--green)', Questionable: 'var(--yellow)', Implausible: 'var(--red)' };
 
 // ---------- Build static UI once ----------
 function buildInputs() {
@@ -121,6 +122,26 @@ function updateResult(r) {
     <div class="diag-sub">Monte Carlo simulations with \u00B112% weight perturbation.<span class="diag-hint"> (Stochastic ensemble)</span></div>
   `;
 
+  // Realism check
+  const rl = r.realism;
+  const rCol = REALISM_COL[rl.level];
+  const realEl = document.getElementById('diag-realism');
+  realEl.style.display = 'block';
+  realEl.innerHTML = `
+    <div class="diag-header">
+      <span class="diag-label">Scenario Realism</span>
+      <span class="realism-badge ${rl.badgeClass}">${rl.level}</span>
+    </div>
+    ${rl.warnings.length > 0 ? `
+      <ul class="realism-warnings">
+        ${rl.warnings.map(w => `<li>${w}</li>`).join('')}
+      </ul>
+      <div class="diag-sub" style="margin-top:6px">Model assumes independent variables; in reality, climate vulnerability correlates with infrastructure quality and response capacity. <span class="diag-hint">Domain constraint check</span></div>
+    ` : `
+      <div class="diag-sub">All parameters are within realistic ranges for real-world scenarios.<span class="diag-hint"> Domain constraint check</span></div>
+    `}
+  `;
+
   // Explanation expand
   if (state.expanded) {
     const ec = document.getElementById('expand-content');
@@ -145,6 +166,31 @@ function updateCompare() {
   const grid = document.getElementById('compare-grid');
   if (!state.compare) { grid.style.display = 'none'; return; }
   grid.style.display = 'grid';
+
+  // Insight text
+  const diff = resultB.score - result.score;
+  let insight = '';
+  if (Math.abs(diff) <= 2) {
+    insight = 'Scenarios are nearly identical in risk.';
+  } else if (diff > 0) {
+    const topA = result.sorted[0];
+    const topB = resultB.sorted[0];
+    insight = `Scenario A (${result.score}) outperforms B (${resultB.score}) mainly due to better ${topA.contribution < 0 ? topA.label : 'management of ' + topB.label}.`;
+  } else {
+    const topA = result.sorted[0];
+    const topB = resultB.sorted[0];
+    insight = `Scenario B (${resultB.score}) outperforms A (${result.score}) mainly due to better ${topB.contribution < 0 ? topB.label : 'management of ' + topA.label}.`;
+  }
+
+  let insightEl = document.getElementById('compare-insight');
+  if (!insightEl) {
+    insightEl = document.createElement('div');
+    insightEl.id = 'compare-insight';
+    insightEl.className = 'compare-insight';
+    grid.parentNode.insertBefore(insightEl, grid.nextSibling);
+  }
+  insightEl.textContent = insight;
+
   for (const [tag, key] of [['A', 'inputs'], ['B', 'inputsB']]) {
     const r = key === 'inputs' ? result : resultB;
     const inp = state[key];
@@ -185,6 +231,8 @@ function onCompare(key, id) {
 function toggleCompare() {
   state.compare = !state.compare;
   document.getElementById('compare-toggle').classList.toggle('on');
+  const el = document.getElementById('compare-insight');
+  if (el) el.style.display = state.compare ? 'block' : 'none';
   updateCompare();
 }
 

@@ -49,6 +49,7 @@
       <div class="diag-section" id="diag-confidence"></div>
       <div class="diag-section" id="diag-anomaly"></div>
       <div class="diag-section" id="diag-ensemble"></div>
+      <div class="diag-section" id="diag-realism" style="display:none"></div>
     </div>
   </div>
 
@@ -59,6 +60,19 @@
     <button class="toggle" id="compare-toggle"></button>
   </div>
   <div class="comp-grid" id="compare-grid" style="display:none"></div>
+
+  <div class="limitations">
+    <div class="limitations-title">Model Limitations</div>
+    <p>
+      <strong>Independent variables assumed.</strong> In reality, climate vulnerability correlates with infrastructure quality and response capacity — a region with high vulnerability rarely maintains top-tier infrastructure.
+      <strong>Emergency response times below 3 minutes are theoretical.</strong> The model extrapolates with decreasing confidence beyond observed global data.
+      <strong>Linear weighting simplifies complex interactions.</strong> Real disaster risk involves non-linear thresholds, cascading failures, and feedback loops not captured here.
+      <strong>Anomaly detection uses static centroids.</strong> Normal ranges shift over time with development and climate change; the model does not adapt dynamically.
+    </p>
+    <p style="margin-top:8px;font-size:0.7rem;color:var(--text3)">
+      For real deployment: calibrate weights against historical disaster data, add correlated feature constraints, and update normal baselines annually. This prototype demonstrates system architecture, not production readiness.
+    </p>
+  </div>
 
   <div class="footer">
     <span class="footer-credit">Created by <strong>Viren Singh</strong></span>
