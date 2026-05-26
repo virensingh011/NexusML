@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Disaster Risk Intelligence</title>
+  <title>NexusML: AI Risk Intelligence Engine</title>
   <link rel="stylesheet" href="css/style.css">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚠️</text></svg>">
 </head>
@@ -11,16 +11,19 @@
 <div class="app">
 
   <div class="header">
-    <h1>Disaster Risk Intelligence</h1>
-    <p>Predict disaster risk from environmental and socioeconomic conditions. Adjust inputs to see how resilience measures change outcomes.</p>
+    <h1>NexusML: AI Risk Intelligence Engine</h1>
+    <p>Urban disaster risk prediction with multi-model comparison, uncertainty quantification, and real-time drift monitoring. Select a model, adjust parameters, and see how different algorithms evaluate the same scenario.</p>
   </div>
 
   <div class="grid">
     <div class="card" id="input-panel">
-      <div class="card-title">Scenario Parameters</div>
+      <div class="card-title">
+        Scenario Parameters
+        <select id="model-select" class="model-selector"></select>
+      </div>
     </div>
     <div class="card" id="output-panel">
-      <div class="card-title">Risk Assessment</div>
+      <div class="card-title">Risk Assessment <span id="active-model-label" class="active-model-label"></span></div>
       <div class="score-wrap">
         <div class="score-ring" id="score-ring">
           <svg width="140" height="140">
@@ -48,8 +51,10 @@
       <div class="card-title">Model Diagnostics</div>
       <div class="diag-section" id="diag-confidence"></div>
       <div class="diag-section" id="diag-anomaly"></div>
+      <div class="diag-section" id="diag-models"></div>
       <div class="diag-section" id="diag-ensemble"></div>
       <div class="diag-section" id="diag-realism" style="display:none"></div>
+      <div class="diag-section" id="diag-drift" style="display:none"></div>
     </div>
   </div>
 
@@ -58,25 +63,27 @@
   <div class="toggle-bar">
     <span style="font-size:.82rem;color:var(--text2);font-weight:500">Compare Scenarios</span>
     <button class="toggle" id="compare-toggle"></button>
+    <span style="font-size:.82rem;color:var(--text2);font-weight:500;margin-left:24px">Simulate Data Drift</span>
+    <button class="toggle" id="drift-toggle"></button>
   </div>
   <div class="comp-grid" id="compare-grid" style="display:none"></div>
 
   <div class="limitations">
     <div class="limitations-title">Model Limitations</div>
     <p>
-      <strong>Independent variables assumed.</strong> In reality, climate vulnerability correlates with infrastructure quality and response capacity — a region with high vulnerability rarely maintains top-tier infrastructure.
+      <strong>Independent variables assumed.</strong> In reality, climate vulnerability correlates with infrastructure quality and response capacity.
       <strong>Emergency response times below 3 minutes are theoretical.</strong> The model extrapolates with decreasing confidence beyond observed global data.
-      <strong>Linear weighting simplifies complex interactions.</strong> Real disaster risk involves non-linear thresholds, cascading failures, and feedback loops not captured here.
-      <strong>Anomaly detection uses static centroids.</strong> Normal ranges shift over time with development and climate change; the model does not adapt dynamically.
+      <strong>Linear weighting simplifies complex interactions.</strong> Real disaster risk involves non-linear thresholds, cascading failures, and feedback loops.
+      <strong>Drift simulation shifts centroids uniformly.</strong> Real drift is feature-specific and non-uniform.
     </p>
     <p style="margin-top:8px;font-size:0.7rem;color:var(--text3)">
-      For real deployment: calibrate weights against historical disaster data, add correlated feature constraints, and update normal baselines annually. This prototype demonstrates system architecture, not production readiness.
+      For production: calibrate weights against historical data, add correlated feature constraints, update baselines annually, and retrain on drift detection.
     </p>
   </div>
 
   <div class="footer">
     <span class="footer-credit">Created by <strong>Viren Singh</strong></span>
-    <span class="footer-ver">Disaster Risk Intelligence v1.0</span>
+    <span class="footer-ver">NexusML v1.0 — AI Risk Intelligence Engine</span>
   </div>
 
 </div>
