@@ -62,6 +62,30 @@ function computeUncertainty(inputs, weights) {
   return { lo: Math.round(lo), hi: Math.round(hi), margin, confidence: margin <= 5 ? 'High' : margin <= 10 ? 'Medium' : 'Low' };
 }
 
+function computeProbabilityDistribution(score) {
+  const s = Math.min(100, Math.max(0, score));
+  const v = 800;
+  const low = Math.exp(-((s - 15) ** 2) / v);
+  const med = Math.exp(-((s - 50) ** 2) / v);
+  const high = Math.exp(-((s - 85) ** 2) / v);
+  const tot = low + med + high;
+  return {
+    low: Math.round((low / tot) * 100),
+    medium: Math.round((med / tot) * 100),
+    high: 100 - Math.round((low / tot) * 100) - Math.round((med / tot) * 100),
+  };
+}
+
+function computeFinalRisk(primary, anomaly, drift) {
+  const ms = primary.score;
+  const fi = Math.min(100, primary.sorted.slice(0, 3).reduce((s, f) => s + Math.abs(f.contribution), 0) / 3);
+  const as = anomaly ? anomaly.score : 25;
+  const ds = drift ? drift.score : 25;
+  const dp = Math.max(0, 100 - ds);
+  const final = Math.round(ms * 0.50 + fi * 0.20 + as * 0.15 + dp * 0.15);
+  return { score: Math.min(100, final), level: final < 30 ? 'Low' : final < 70 ? 'Medium' : 'High' };
+}
+
 function detectAnomaly(inputs, drifted) {
   const cents = drifted ? DRIFT_CENTROIDS : NORMAL_CENTROIDS;
   let dist = 0;
@@ -99,16 +123,20 @@ function predictModel(inputs, modelId) {
     ? `${top.label} is the primary risk driver (${top.importance.toFixed(1)}% influence). Reducing exposure would most effectively lower risk.`
     : `${top.label} is the strongest protective factor (${top.importance.toFixed(1)}% influence). Strengthening it further improves resilience.`;
 
-  const counterfactuals = sorted.slice(0, 3).map(f => {
+  const counterfactuals = sorted.slice(0, 3).map((f, i) => {
     const current = inputs[f.id];
     const delta = (f.contribution > 0 ? -1 : 1) * ((f.max - f.min) * 0.2);
     const newVal = Math.min(f.max, Math.max(f.min, current + delta));
     const ni = { ...inputs, [f.id]: newVal };
-    return { feature: f.label, change: (delta > 0 ? '+' : '') + delta.toFixed(0), unit: f.unit, current, newValue: Math.round(newVal), delta: Math.round(predictRaw(ni, w, model.baseline) - score) };
+    const riskDelta = Math.round(predictRaw(ni, w, model.baseline) - score);
+    const reason = i === 0
+      ? (f.contribution > 0 ? 'Strongest risk driver \u2014 reducing it lowers risk most' : 'Strongest protective factor \u2014 increasing it improves resilience')
+      : (f.contribution > 0 ? 'Secondary risk contributor' : 'Secondary protective factor');
+    return { feature: f.label, change: (delta > 0 ? '+' : '') + delta.toFixed(0), unit: f.unit, current, newValue: Math.round(newVal), delta: riskDelta, reason };
   });
 
   const uncertainty = computeUncertainty(inputs, w);
-  return { score, level, action, contributions, sorted, explanation, counterfactuals, uncertainty, modelId: model.id };
+  return { score, level, action, contributions, sorted, explanation, counterfactuals, uncertainty, modelId: model.id, label: model.label, desc: model.desc };
 }
 
 function predictAll(inputs) {
@@ -158,11 +186,16 @@ function predict(inputs, opts) {
   const rlvl = rs >= 30 ? 'Implausible' : rs >= 10 ? 'Questionable' : 'Realistic';
   const rcls = rlvl === 'Implausible' ? 'implausible' : rlvl === 'Questionable' ? 'questionable' : 'realistic';
 
+  const finalRisk = computeFinalRisk(primary, anomaly, drift);
+  const probDist = computeProbabilityDistribution(primary.score);
+
   return {
     ...primary,
     allModels: all,
     anomaly,
     realism: { level: rlvl, badgeClass: rcls, warnings: rw, score: rs },
     drift,
+    finalRisk,
+    probDist,
   };
 }

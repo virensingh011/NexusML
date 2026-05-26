@@ -83,77 +83,109 @@ function buildCompareScenarios() {
 
 // ---------- Update ----------
 function updateResult(r) {
-  const col = LEVEL_COLORS[r.level];
-  document.getElementById('score-num').textContent = r.score;
+  const col = LEVEL_COLORS[r.level] || '#86868b';
+  document.getElementById('score-num').textContent = r.score !== undefined && r.score !== null ? r.score : 'Not Available';
   document.getElementById('score-num').style.color = col;
 
   const arc = document.getElementById('score-arc');
   arc.setAttribute('stroke', col);
-  arc.setAttribute('stroke-dashoffset', 314 - (r.score / 100) * 314);
+  arc.setAttribute('stroke-dashoffset', 314 - ((r.score || 0) / 100) * 314);
 
-  const conf = r.uncertainty;
+  const conf = r.uncertainty || { margin: '?', confidence: 'Low', lo: '?', hi: '?' };
   document.getElementById('score-conf').innerHTML =
-    `\u00B1${conf.margin} \u00B7 <span class="conf-badge ${conf.confidence.toLowerCase()}">${conf.confidence} confidence</span>`;
+    `\u00B1${conf.margin} \u00B7 <span class="conf-badge ${(conf.confidence || 'low').toLowerCase()}">${conf.confidence || 'Low'} confidence</span>`;
 
+  // --- Probability distribution + level badge ---
+  const pd = r.probDist || { low: 0, medium: 0, high: 0 };
   const lb = document.getElementById('level-badge');
-  lb.textContent = r.level + ' Risk';
-  lb.className = 'level-badge ' + r.level.toLowerCase();
+  lb.innerHTML = `${r.level} Risk<span class="prob-dist"> L:${pd.low}% M:${pd.medium}% H:${pd.high}%</span>`;
+  lb.className = 'level-badge ' + (r.level || 'low').toLowerCase();
 
+  const anomLabel = (r.anomaly && r.anomaly.label) || 'Typical';
   const ab = document.getElementById('anomaly-badge');
-  ab.textContent = r.anomaly.label + ' scenario';
-  ab.className = 'anomaly-badge ' + r.anomaly.label.toLowerCase();
-  ab.style.color = ANOM_COL[r.anomaly.label];
+  ab.textContent = anomLabel + ' scenario';
+  ab.className = 'anomaly-badge ' + anomLabel.toLowerCase();
+  ab.style.color = ANOM_COL[anomLabel] || 'var(--text2)';
 
-  document.getElementById('risk-action').textContent = r.action;
+  document.getElementById('risk-action').textContent = r.action || 'Not Available';
 
-  const maxImp = r.sorted[0].importance || 1;
-  document.getElementById('imp-list').innerHTML = r.sorted.map(f => `
-    <div class="imp-bar">
-      <span class="imp-label">${f.label}</span>
-      <div class="imp-track"><div class="imp-fill ${f.contribution > 0 ? 'pos' : 'neg'}" style="width:${(f.importance / maxImp) * 100}%"></div></div>
-      <span class="imp-val">${f.contribution > 0 ? '+' : ''}${f.contribution.toFixed(1)}</span>
-    </div>
-  `).join('');
+  // --- Simplified feature influence (top 5) ---
+  const topFeatures = (r.sorted || []).slice(0, 5);
+  const maxImp = topFeatures.length ? (topFeatures[0].importance || 1) : 1;
+  document.getElementById('imp-list').innerHTML = topFeatures.length
+    ? topFeatures.map(f => `
+      <div class="imp-bar">
+        <span class="imp-label">${f.label}</span>
+        <div class="imp-track"><div class="imp-fill ${(f.contribution || 0) > 0 ? 'pos' : 'neg'}" style="width:${((f.importance || 0) / maxImp) * 100}%"></div></div>
+        <span class="imp-val">${(f.contribution || 0) > 0 ? '+' : ''}${(f.contribution || 0).toFixed(1)}</span>
+      </div>
+    `).join('')
+    : '<div class="diag-sub">No feature data available</div>';
 
-  // Diagnostics
+  // --- Diagnostics ---
   document.getElementById('diag-confidence').innerHTML = `
-    <div class="diag-header"><span class="diag-label">Prediction Confidence</span><span class="diag-value">${conf.confidence}</span></div>
-    <div class="diag-track"><div class="diag-fill" style="width:${CONF_PCT[conf.confidence]}%;background:var(--accent)"></div></div>
+    <div class="diag-header"><span class="diag-label">Prediction Confidence</span><span class="diag-value">${conf.confidence || 'Not Available'}</span></div>
+    <div class="diag-track"><div class="diag-fill" style="width:${CONF_PCT[conf.confidence] || 50}%;background:var(--accent)"></div></div>
     <div class="diag-sub">Score range: ${conf.lo} \u2013 ${conf.hi}<span class="diag-hint"> (95% CI via Monte Carlo)</span></div>
   `;
 
-  const aCol = ANOM_COL[r.anomaly.label];
-  document.getElementById('diag-anomaly').innerHTML = `
-    <div class="diag-header"><span class="diag-label">Scenario Anomaly Score</span><span class="diag-value" style="color:${aCol}">${r.anomaly.score}</span></div>
-    <div class="diag-track"><div class="diag-fill" style="width:${r.anomaly.score}%;background:${aCol}"></div></div>
-    <div class="diag-sub">${r.anomaly.label} \u2014 ${r.anomaly.score > 60 ? 'Input combination deviates from typical profiles.' : 'Inputs are within expected ranges.'}<span class="diag-hint"> (Mahalanobis distance)</span></div>
+  // --- Decision Rule ---
+  const fr = r.finalRisk || { score: 'Not Available', level: 'Not Available' };
+  document.getElementById('diag-decision-rule').innerHTML = `
+    <div class="diag-header"><span class="diag-label">Final Risk (Decision Rule)</span><span class="diag-value" style="color:${LEVEL_COLORS[fr.level] || '#86868b'}">${fr.score} \u2014 ${fr.level}</span></div>
+    <div class="decision-rule">
+      <span class="rule-weight">Model (50%)</span><span class="rule-bar"><span class="rule-fill" style="width:50%;background:var(--accent)"></span></span><span class="rule-pct">${r.score || '?'}</span>
+      <span class="rule-weight">Features (20%)</span><span class="rule-bar"><span class="rule-fill" style="width:20%;background:var(--orange)"></span></span><span class="rule-pct">+${Math.min(100, (r.sorted || []).slice(0,3).reduce((s,f) => s + Math.abs(f.contribution||0),0)/3).toFixed(0) || '?'}</span>
+      <span class="rule-weight">Anomaly (15%)</span><span class="rule-bar"><span class="rule-fill" style="width:15%;background:var(--yellow)"></span></span><span class="rule-pct">${(r.anomaly && r.anomaly.score) || '?'}</span>
+      <span class="rule-weight">Drift (15%)</span><span class="rule-bar"><span class="rule-fill" style="width:15%;background:var(--red)"></span></span><span class="rule-pct">${r.drift ? Math.max(0, 100 - r.drift.score) : 75}</span>
+    </div>
+    <div class="diag-sub">Weighted combination of model, features, anomaly, and drift.<span class="diag-hint"> 0\u201330 Low / 30\u201370 Medium / 70\u2013100 High</span></div>
   `;
 
-  // Model comparison table
+  // --- Anomaly ---
+  const aCol = ANOM_COL[anomLabel] || 'var(--text2)';
+  document.getElementById('diag-anomaly').innerHTML = `
+    <div class="diag-header"><span class="diag-label">Scenario Anomaly Score</span><span class="diag-value" style="color:${aCol}">${(r.anomaly && r.anomaly.score) || 'Not Available'}</span></div>
+    <div class="diag-track"><div class="diag-fill" style="width:${(r.anomaly && r.anomaly.score) || 0}%;background:${aCol}"></div></div>
+    <div class="diag-sub">${anomLabel} \u2014 ${(r.anomaly && r.anomaly.score) > 60 ? 'Input combination deviates from typical profiles.' : 'Inputs are within expected ranges.'}<span class="diag-hint"> (Mahalanobis distance)</span></div>
+  `;
+
+  // --- Model comparison table ---
+  const models = r.allModels || [];
+  const bestModel = models.length > 0
+    ? models.reduce((best, m) => (m.score || 0) > (best.score || 0) ? m : best)
+    : null;
   document.getElementById('diag-models').innerHTML = `
     <div class="diag-header"><span class="diag-label">Model Comparison</span></div>
+    ${models.length > 0 ? `
     <div class="model-table">
-      ${r.allModels.map(m => {
-        const c = LEVEL_COLORS[m.level];
-        const isBest = Math.abs(m.score - 50) === Math.min(...r.allModels.map(x => Math.abs(x.score - 50)));
+      ${models.map(m => {
+        const name = m.label || 'Not Available';
+        const desc = m.desc || '';
+        const score = (m.score !== undefined && m.score !== null) ? m.score : 'Not Available';
+        const level = m.level || 'Not Available';
+        const c = LEVEL_COLORS[level] || '#86868b';
+        const isBest = bestModel && m.modelId === bestModel.modelId;
         const isActive = m.modelId === state.model;
         return `
-          <div class="model-row ${isActive ? 'model-active' : ''}" onclick="switchModel('${m.modelId}')">
+          <div class="model-row ${isActive ? 'model-active' : ''}" onclick="switchModel('${m.modelId || ''}')">
             <div class="model-info">
-              <span class="model-name">${m.label}</span>
-              <span class="model-desc">${m.desc}</span>
+              <span class="model-name">${name}</span>
+              ${desc ? `<span class="model-desc">${desc}</span>` : ''}
             </div>
-            <div class="model-score" style="color:${c}">${m.score}</div>
-            <div class="model-level" style="color:${c}">${m.level}</div>
+            <div class="model-score" style="color:${c}">${score}</div>
+            <div class="model-level" style="color:${c}">${level}</div>
             ${isActive ? '<span class="model-badge">active</span>' : ''}
+            ${isBest && !isActive ? '<span class="model-badge" style="background:rgba(48,209,88,0.12);color:var(--green)">best</span>' : ''}
           </div>
         `;
       }).join('')}
     </div>
     <div class="diag-sub" style="margin-top:6px">
-      <span class="model-auto">Best: ${r.allModels.reduce((best, m) => Math.abs(m.score - 50) < Math.abs(best.score - 50) ? m : best).label}</span>
-      <span class="diag-hint"> (closest to decision boundary)</span>
+      <span class="model-auto">Best: ${bestModel ? (bestModel.label || 'Not Available') + ' (' + (bestModel.score !== undefined && bestModel.score !== null ? bestModel.score : '?') + ')' : 'No model available'}</span>
+      <span class="diag-hint"> (highest score)</span>
     </div>
+    ` : '<div class="diag-sub" style="padding:8px 0">No model available</div>'}
   `;
 
   document.getElementById('diag-ensemble').innerHTML = `
@@ -161,46 +193,66 @@ function updateResult(r) {
     <div class="diag-sub">Monte Carlo simulations with \u00B112% weight perturbation.<span class="diag-hint"> (Stochastic ensemble)</span></div>
   `;
 
-  // Realism
-  const rl = r.realism;
+  // --- Realism ---
+  const rl = r.realism || { level: 'Realistic', badgeClass: 'realistic', warnings: [] };
   const realEl = document.getElementById('diag-realism');
   realEl.style.display = 'block';
   realEl.innerHTML = `
-    <div class="diag-header"><span class="diag-label">Scenario Realism</span><span class="realism-badge ${rl.badgeClass}">${rl.level}</span></div>
-    ${rl.warnings.length ? `<ul class="realism-warnings">${rl.warnings.map(w => `<li>${w}</li>`).join('')}</ul><div class="diag-sub" style="margin-top:6px">Model assumes independent variables.<span class="diag-hint"> Domain constraint check</span></div>`
-    : `<div class="diag-sub">All parameters are within realistic ranges.<span class="diag-hint"> Domain constraint check</span></div>`}
+    <div class="diag-header"><span class="diag-label">Scenario Realism</span><span class="realism-badge ${rl.badgeClass || 'realistic'}">${rl.level || 'Realistic'}</span></div>
+    ${(rl.warnings || []).length
+      ? `<ul class="realism-warnings">${rl.warnings.map(w => `<li>${w || ''}</li>`).join('')}</ul><div class="diag-sub" style="margin-top:6px">Model assumes independent variables.<span class="diag-hint"> Domain constraint check</span></div>`
+      : `<div class="diag-sub">All parameters are within realistic ranges.<span class="diag-hint"> Domain constraint check</span></div>`}
   `;
 
-  // Drift
+  // --- Drift status ---
   const driftEl = document.getElementById('diag-drift');
   if (state.drift && r.drift) {
     driftEl.style.display = 'block';
-    const dCol = DRIFT_COL[r.drift.severity];
+    const statusMap = { Low: '\uD83D\uDFE2 Stable', Moderate: '\uD83D\uDFE1 Warning', Severe: '\uD83D\uDD34 Critical' };
+    const status = statusMap[r.drift.severity] || r.drift.severity;
+    const dCol = DRIFT_COL[r.drift.severity] || 'var(--green)';
     driftEl.innerHTML = `
-      <div class="diag-header"><span class="diag-label">Data Drift Severity</span><span class="diag-value" style="color:${dCol}">${r.drift.severity}</span></div>
-      <div class="diag-track"><div class="diag-fill" style="width:${r.drift.score}%;background:${dCol}"></div></div>
-      <div class="diag-sub">Distribution shift score: ${r.drift.score}/100. Population and climate centroids have shifted since training.<span class="diag-hint"> (PSI proxy)</span></div>
-      ${r.drift.reasons.length ? `<ul class="realism-warnings">${r.drift.reasons.map(w => `<li>${w}</li>`).join('')}</ul>` : ''}
-      <div class="diag-sub" style="margin-top:4px"><span style="color:var(--yellow)">\u26A0</span> Model performance may degrade. Retraining recommended if drift persists.<span class="diag-hint"> (Drift simulation active)</span></div>
+      <div class="diag-header"><span class="diag-label">Data Drift Status</span><span class="diag-value" style="color:${dCol}">${status}</span></div>
+      <div class="diag-track"><div class="diag-fill" style="width:${r.drift.score || 0}%;background:${dCol}"></div></div>
+      <div class="diag-sub">Distribution shift: ${r.drift.score || 0}/100<span class="diag-hint"> (PSI proxy)</span></div>
+      ${(r.drift.reasons || []).length ? `<ul class="realism-warnings">${r.drift.reasons.map(w => `<li>${w || ''}</li>`).join('')}</ul>` : ''}
     `;
   } else {
     driftEl.style.display = 'none';
   }
 
-  // Explanation expand
+  // --- Short + structured "Why this result" ---
   if (state.expanded) {
     const ec = document.getElementById('expand-content');
     ec.style.display = 'block';
+    const sorted = r.sorted || [];
+    const top = sorted[0] || null;
+    const second = sorted[1] || null;
+    const topDriver = top
+      ? (top.contribution || 0) > 0
+        ? `${top.label} is the top risk driver (+${(top.importance || 0).toFixed(1)})`
+        : `${top.label} is the strongest protective factor (${(top.importance || 0).toFixed(1)})`
+      : 'Not Available';
+    const secondDriver = second
+      ? (second.contribution || 0) > 0
+        ? `${second.label} is the second driver (+${(second.importance || 0).toFixed(1)})`
+        : `${second.label} is the second protective factor (${(second.importance || 0).toFixed(1)})`
+      : 'Not Available';
     ec.innerHTML = `
-      <p>${r.explanation}</p>
-      <div style="margin-top:16px;font-weight:500;color:var(--text)">Counterfactual scenarios</div>
-      <div class="cf-list">${r.counterfactuals.map(c => `
+      <div class="why-item"><span class="why-bullet">Top driver:</span> ${topDriver}</div>
+      <div class="why-item"><span class="why-bullet">Second driver:</span> ${secondDriver}</div>
+      <div class="why-item"><span class="why-bullet">Stability:</span> \u00B1${conf.margin} (${conf.confidence} confidence)</div>
+      <div style="margin-top:14px;font-weight:500;color:var(--text)">Counterfactual scenarios</div>
+      <div class="cf-list">${(r.counterfactuals || []).map(c => `
         <div class="cf-item">
-          <div class="cf-info"><div class="cf-feature">${c.feature}</div><div class="cf-change">${c.current}${c.unit} \u2192 ${c.newValue}${c.unit}</div></div>
-          <div class="cf-delta ${c.delta <= 0 ? 'down' : 'up'}">${c.delta > 0 ? '+' + c.delta : c.delta} risk</div>
+          <div class="cf-info">
+            <div class="cf-feature">${c.feature || 'Not Available'}</div>
+            <div class="cf-change">${c.current !== undefined ? c.current : '?'}${c.unit || ''} \u2192 ${c.newValue !== undefined ? c.newValue : '?'}${c.unit || ''}</div>
+            <div class="cf-reason">${c.reason || ''}</div>
+          </div>
+          <div class="cf-delta ${(c.delta || 0) <= 0 ? 'down' : 'up'}">${(c.delta || 0) > 0 ? '+' + c.delta : (c.delta || 0)} risk</div>
         </div>
       `).join('')}</div>
-      <div style="margin-top:12px;font-size:.78rem;color:var(--text3)">Baseline risk: varies by model. Monte Carlo CI (95%).</div>
     `;
   }
 }
@@ -279,9 +331,17 @@ function toggleCompare() {
 function toggleExpand() {
   state.expanded = !state.expanded;
   const btn = document.getElementById('expand-btn');
-  const ec = document.getElementById('expand-content');
-  if (state.expanded) { btn.textContent = '\u25BE Why this result?'; updateResult(result); }
-  else { btn.textContent = '\u25B8 Why this result?'; ec.style.display = 'none'; }
+  if (state.expanded) {
+    btn.textContent = '\u25BE Why this result?';
+    try { updateResult(result); } catch (e) {
+      const ec = document.getElementById('expand-content');
+      if (ec) { ec.style.display = 'block'; ec.textContent = 'Error: ' + e.message; }
+    }
+  } else {
+    btn.textContent = '\u25B8 Why this result?';
+    const ec = document.getElementById('expand-content');
+    if (ec) ec.style.display = 'none';
+  }
 }
 
 function toggleDrift() {
