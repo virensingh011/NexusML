@@ -6,6 +6,7 @@
   <title>NexusML: AI Risk Intelligence Engine</title>
   <link rel="stylesheet" href="css/style.css">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚠️</text></svg>">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 <div class="app">
@@ -68,6 +69,30 @@
     <button class="toggle" id="drift-toggle"></button>
   </div>
   <div class="comp-grid" id="compare-grid" style="display:none"></div>
+
+  <div class="divider"></div>
+
+  <div class="grid">
+    <div class="card" id="dataset-panel">
+      <div class="card-title">Dataset Viewer <span class="diag-hint" style="font-weight:400;text-transform:none">sample scenarios with predictions</span></div>
+      <div class="dataset-table-wrap" id="dataset-body"></div>
+    </div>
+    <div class="card" id="confusion-panel">
+      <div class="card-title">Confusion Matrix <span class="diag-hint" style="font-weight:400;text-transform:none">predicted vs expected</span></div>
+      <div id="confusion-body"></div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card" id="train-test-panel">
+      <div class="card-title">Train / Test Performance <span class="diag-hint" style="font-weight:400;text-transform:none">80/20 split</span></div>
+      <div id="train-test-body"></div>
+    </div>
+    <div class="card" id="chart-panel">
+      <div class="card-title">Risk Distribution <span class="diag-hint" style="font-weight:400;text-transform:none">across sample dataset</span></div>
+      <div class="chart-wrap"><canvas id="risk-chart"></canvas></div>
+    </div>
+  </div>
 
   <div class="limitations">
     <div class="limitations-title">Model Limitations</div>

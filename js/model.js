@@ -199,3 +199,62 @@ function predict(inputs, opts) {
     probDist,
   };
 }
+
+function computeLevel(score) {
+  if (score < 25) return 'Low';
+  if (score < 50) return 'Medium';
+  if (score < 75) return 'High';
+  return 'Critical';
+}
+
+const SAMPLE_DATA = [
+  { pop: 3000, infra: 75, response: 10, freq: 5, climate: 25, economy: 70, expected: 'Low' },
+  { pop: 5000, infra: 60, response: 15, freq: 8, climate: 40, economy: 50, expected: 'Medium' },
+  { pop: 15000, infra: 30, response: 25, freq: 18, climate: 70, economy: 30, expected: 'High' },
+  { pop: 25000, infra: 20, response: 35, freq: 25, climate: 85, economy: 20, expected: 'High' },
+  { pop: 1200, infra: 85, response: 5, freq: 3, climate: 15, economy: 90, expected: 'Low' },
+  { pop: 8000, infra: 50, response: 18, freq: 12, climate: 50, economy: 45, expected: 'Medium' },
+  { pop: 35000, infra: 15, response: 40, freq: 30, climate: 90, economy: 15, expected: 'Critical' },
+  { pop: 7000, infra: 70, response: 12, freq: 6, climate: 30, economy: 65, expected: 'Low' },
+  { pop: 10000, infra: 45, response: 20, freq: 15, climate: 60, economy: 40, expected: 'Medium' },
+  { pop: 20000, infra: 25, response: 30, freq: 22, climate: 75, economy: 25, expected: 'High' },
+  { pop: 4000, infra: 80, response: 8, freq: 4, climate: 20, economy: 80, expected: 'Low' },
+  { pop: 12000, infra: 55, response: 22, freq: 10, climate: 55, economy: 55, expected: 'Medium' },
+  { pop: 30000, infra: 18, response: 45, freq: 28, climate: 95, economy: 10, expected: 'Critical' },
+  { pop: 6000, infra: 65, response: 14, freq: 7, climate: 35, economy: 60, expected: 'Low' },
+  { pop: 18000, infra: 35, response: 28, freq: 20, climate: 65, economy: 35, expected: 'High' },
+  { pop: 9000, infra: 50, response: 16, freq: 14, climate: 45, economy: 48, expected: 'Medium' },
+  { pop: 22000, infra: 22, response: 32, freq: 24, climate: 80, economy: 22, expected: 'High' },
+  { pop: 2000, infra: 90, response: 6, freq: 2, climate: 10, economy: 95, expected: 'Low' },
+];
+
+function computeConfusionMatrix(data, modelId) {
+  const labels = ['Low', 'Medium', 'High', 'Critical'];
+  const matrix = labels.map(() => labels.map(() => 0));
+  for (const d of data) {
+    const predicted = computeLevel(predictModel(d, modelId).score);
+    const actual = d.expected;
+    const pi = labels.indexOf(predicted);
+    const ai = labels.indexOf(actual);
+    if (pi >= 0 && ai >= 0) matrix[pi][ai]++;
+  }
+  return { matrix, labels };
+}
+
+function computeAccuracy(data, modelId) {
+  let correct = 0;
+  for (const d of data) {
+    const predicted = computeLevel(predictModel(d, modelId).score);
+    if (predicted === d.expected) correct++;
+  }
+  return { correct, total: data.length, pct: data.length ? Math.round((correct / data.length) * 100) : 0 };
+}
+
+function getRiskDistribution(data, modelId) {
+  const counts = { Low: 0, Medium: 0, High: 0, Critical: 0 };
+  for (const d of data) {
+    const predicted = computeLevel(predictModel(d, modelId).score);
+    counts[predicted]++;
+  }
+  return counts;
+}

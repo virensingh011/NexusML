@@ -27,6 +27,12 @@ function recalc() {
 }
 recalc();
 
+// ---------- Dataset split (seed-independent shuffle) ----------
+const SHUFFLED = [...SAMPLE_DATA].sort(() => Math.random() - 0.5);
+const SPLIT_IDX = Math.floor(SHUFFLED.length * 0.8);
+const TRAIN_DATA = SHUFFLED.slice(0, SPLIT_IDX);
+const TEST_DATA = SHUFFLED.slice(SPLIT_IDX);
+
 // ---------- Build static UI ----------
 function buildInputs() {
   const panel = document.getElementById('input-panel');
@@ -93,21 +99,24 @@ function updateResult(r) {
 
   const conf = r.uncertainty || { margin: '?', confidence: 'Low', lo: '?', hi: '?' };
   document.getElementById('score-conf').innerHTML =
-    `\u00B1${conf.margin} \u00B7 <span class="conf-badge ${(conf.confidence || 'low').toLowerCase()}">${conf.confidence || 'Low'} confidence</span>`;
+    `\u00B1${conf.margin} \u00B7 <span class="conf-badge ${(conf.confidence || 'low').toLowerCase()}" title="Confidence based on Monte Carlo spread">${conf.confidence || 'Low'} confidence</span>`;
 
   // --- Probability distribution + level badge ---
   const pd = r.probDist || { low: 0, medium: 0, high: 0 };
   const lb = document.getElementById('level-badge');
   lb.innerHTML = `${r.level} Risk<span class="prob-dist"> L:${pd.low}% M:${pd.medium}% H:${pd.high}%</span>`;
   lb.className = 'level-badge ' + (r.level || 'low').toLowerCase();
+  lb.title = 'Risk level with probability distribution';
 
   const anomLabel = (r.anomaly && r.anomaly.label) || 'Typical';
   const ab = document.getElementById('anomaly-badge');
   ab.textContent = anomLabel + ' scenario';
   ab.className = 'anomaly-badge ' + anomLabel.toLowerCase();
   ab.style.color = ANOM_COL[anomLabel] || 'var(--text2)';
+  ab.title = 'Anomaly detection score based on Mahalanobis distance';
 
   document.getElementById('risk-action').textContent = r.action || 'Not Available';
+  document.getElementById('risk-action').title = 'Recommended action based on risk level';
 
   // --- Simplified feature influence (top 5) ---
   const topFeatures = (r.sorted || []).slice(0, 5);
@@ -168,7 +177,7 @@ function updateResult(r) {
         const isBest = bestModel && m.modelId === bestModel.modelId;
         const isActive = m.modelId === state.model;
         return `
-          <div class="model-row ${isActive ? 'model-active' : ''}" onclick="switchModel('${m.modelId || ''}')">
+          <div class="model-row ${isActive ? 'model-active' : ''}" onclick="switchModel('${m.modelId || ''}')" title="Click to switch to ${name}">
             <div class="model-info">
               <span class="model-name">${name}</span>
               ${desc ? `<span class="model-desc">${desc}</span>` : ''}
@@ -292,6 +301,117 @@ function updateCompare() {
   }
 }
 
+// ---------- Dataset viewer ----------
+function renderDatasetViewer(modelId) {
+  const body = document.getElementById('dataset-body');
+  if (!body) return;
+  const data = SAMPLE_DATA.slice(0, 10);
+  let html = `<table class="dataset-table"><thead><tr>
+    <th title="Population per km\u00B2">Pop</th><th title="Infrastructure quality (0-100)">Infra</th>
+    <th title="Response time (min)">Resp</th><th title="Disaster frequency (/yr)">Freq</th>
+    <th title="Climate vulnerability (0-100)">Climate</th><th title="Economic resilience (0-100)">Econ</th>
+    <th title="Ground truth label">Expected</th><th title="Model prediction">Predicted</th>
+  </tr></thead><tbody>`;
+  for (const d of data) {
+    const predicted = computeLevel(predictModel(d, modelId).score);
+    const match = predicted === d.expected;
+    html += `<tr>
+      <td>${d.pop.toLocaleString()}</td><td>${d.infra}</td><td>${d.response}</td>
+      <td>${d.freq}</td><td>${d.climate}</td><td>${d.economy}</td>
+      <td><span class="cm-badge ${d.expected.toLowerCase()}">${d.expected}</span></td>
+      <td><span class="cm-badge ${predicted.toLowerCase()}">${predicted}${match ? ' \u2713' : ''}</span></td>
+    </tr>`;
+  }
+  html += `</tbody></table>`;
+  body.innerHTML = html;
+}
+
+// ---------- Confusion matrix ----------
+function renderConfusionMatrix(modelId) {
+  const body = document.getElementById('confusion-body');
+  if (!body) return;
+  const cm = computeConfusionMatrix(SAMPLE_DATA, modelId);
+  const labels = cm.labels;
+  let html = `<div class="cm-grid">
+    <div class="cm-cell cm-corner"></div><div class="cm-cell cm-header" style="grid-column:span 4">Expected \u2192</div>`;
+  labels.forEach(l => { html += `<div class="cm-cell cm-header" style="color:${LEVEL_COLORS[l]}">${l}</div>`; });
+  html += `<div class="cm-cell cm-side">Predicted \u2193</div>`;
+  labels.forEach((l, i) => {
+    html += `<div class="cm-cell cm-side" style="color:${LEVEL_COLORS[l]}">${l}</div>`;
+    labels.forEach((_, j) => {
+      const val = cm.matrix[i][j];
+      const max = Math.max(...cm.matrix.flat(), 1);
+      const isDiag = i === j;
+      const bg = isDiag ? `rgba(48,209,88,${(val / max) * 0.5 + 0.1})` : `rgba(255,69,58,${(val / max) * 0.3})`;
+      html += `<div class="cm-cell cm-val ${isDiag ? 'cm-diag' : ''}" style="background:${bg}">${val || ''}</div>`;
+    });
+  });
+  html += `</div>`;
+  body.innerHTML = html;
+}
+
+// ---------- Train / Test ----------
+function renderTrainTest(modelId) {
+  const body = document.getElementById('train-test-body');
+  if (!body) return;
+  const train = computeAccuracy(TRAIN_DATA, modelId);
+  const test = computeAccuracy(TEST_DATA, modelId);
+  const gap = Math.abs(train.pct - test.pct);
+  body.innerHTML = `
+    <div class="tt-row">
+      <span class="tt-label" title="Training set (80% of data)">Train (${train.total})</span>
+      <span class="tt-bar-wrap"><span class="tt-bar" style="width:${train.pct}%;background:${train.pct >= 70 ? 'var(--green)' : train.pct >= 40 ? 'var(--yellow)' : 'var(--red)'}"></span></span>
+      <span class="tt-pct" style="color:${train.pct >= 70 ? 'var(--green)' : train.pct >= 40 ? 'var(--yellow)' : 'var(--red)'}">${train.pct}%</span>
+      <span class="tt-count" title="Correct / Total">${train.correct}/${train.total}</span>
+    </div>
+    <div class="tt-row">
+      <span class="tt-label" title="Test set (20% of data)">Test (${test.total})</span>
+      <span class="tt-bar-wrap"><span class="tt-bar" style="width:${test.pct}%;background:${test.pct >= 70 ? 'var(--green)' : test.pct >= 40 ? 'var(--yellow)' : 'var(--red)'}"></span></span>
+      <span class="tt-pct" style="color:${test.pct >= 70 ? 'var(--green)' : test.pct >= 40 ? 'var(--yellow)' : 'var(--red)'}">${test.pct}%</span>
+      <span class="tt-count" title="Correct / Total">${test.correct}/${test.total}</span>
+    </div>
+    <div class="diag-sub" style="margin-top:8px">Gap: ${gap}%<span class="diag-hint"> 80/20 split</span></div>
+  `;
+}
+
+// ---------- Chart.js risk distribution ----------
+let riskChart = null;
+function renderChart(modelId) {
+  const canvas = document.getElementById('risk-chart');
+  if (!canvas) return;
+  const dist = getRiskDistribution(SAMPLE_DATA, modelId);
+  if (riskChart) { riskChart.destroy(); riskChart = null; }
+  riskChart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: Object.keys(dist),
+      datasets: [{
+        label: 'Samples',
+        data: Object.values(dist),
+        backgroundColor: ['rgba(48,209,88,0.6)', 'rgba(255,214,10,0.6)', 'rgba(255,159,10,0.6)', 'rgba(255,69,58,0.6)'],
+        borderColor: ['#30d158', '#ffd60a', '#ff9f0a', '#ff453a'],
+        borderWidth: 1,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { stepSize: 1, color: '#86868b' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+        x: { ticks: { color: '#86868b' }, grid: { display: false } },
+      },
+    },
+  });
+}
+
+function renderAux(modelId) {
+  renderDatasetViewer(modelId);
+  renderConfusionMatrix(modelId);
+  renderTrainTest(modelId);
+  renderChart(modelId);
+}
+
 // ---------- Handlers ----------
 function onInput(id) {
   state.inputs[id] = +document.getElementById(`ir-${id}`).value;
@@ -320,6 +440,7 @@ function switchModel(id) {
   recalc();
   updateResult(result);
   updateCompare();
+  renderAux(id);
 }
 
 function toggleCompare() {
@@ -353,6 +474,10 @@ function toggleDrift() {
 }
 
 // ---------- Init ----------
+document.getElementById('expand-btn').title = 'Show detailed explanation and counterfactual scenarios';
+document.getElementById('compare-toggle').title = 'Toggle side-by-side scenario comparison';
+document.getElementById('drift-toggle').title = 'Simulate distribution shift in input data';
+
 buildInputs();
 buildModelSelector();
 buildCompareScenarios();
@@ -360,3 +485,4 @@ document.getElementById('compare-toggle').addEventListener('click', toggleCompar
 document.getElementById('expand-btn').addEventListener('click', toggleExpand);
 document.getElementById('drift-toggle').addEventListener('click', toggleDrift);
 updateResult(result);
+renderAux(state.model);
